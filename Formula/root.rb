@@ -1,20 +1,16 @@
 class Root < Formula
   desc "Object oriented framework for large scale data analysis"
   homepage "https://root.cern.ch/"
-  url "https://github.com/root-project/root/archive/v6-23-01.zip"
-  sha256 "63f27b9acbb4added0b79b809da461b9aaa3547808eb24c60fd695bc35d84eed"
-  license "LGPL-2.1-or-later"
+  url "https://root.cern.ch/download/root_v6.18.04.source.tar.gz"
+  version "6.18.04"
+  sha256 "315a85fc8363f8eb1bffa0decbf126121258f79bd273513ed64795675485cfa4"
+  revision 3
   head "https://github.com/root-project/root.git"
 
-  livecheck do
-    url "https://root.cern.ch/download/"
-    regex(/href=.*?root[._-]v?(\d+(?:\.\d*[02468])+)\.source\.t/i)
-  end
-
   bottle do
-    sha256 "09c96ef6d340593421eea5f24b424b8fa4e72d4589220b15a4e20394acd0d814" => :catalina
-    sha256 "b349ebf73a9b10fee9d7860c1a7cba429e21b61983ee51cebe70eebf586dad41" => :mojave
-    sha256 "618f0802bb730843443f6cba04ad83a3d606f19b54ef08182f411b0cb88c75b1" => :high_sierra
+    sha256 "27ae5cf8f6a43ac4f094eedbf08b0b0e359f2b9367ca40bf45461db17f37e92b" => :catalina
+    sha256 "969044266dd1ca84caacee84332072459d0d527ad2e620ad3c481ddfc68275ca" => :mojave
+    sha256 "a81a8865786cd14075807c7fc00ed01350dcdd6dab0b4435f9201519299a3f75" => :high_sierra
   end
 
   # https://github.com/Homebrew/homebrew-core/issues/30726
@@ -34,7 +30,6 @@ class Root < Formula
   depends_on "davix"
   depends_on "fftw"
   depends_on "gcc" # for gfortran
-  depends_on "gl2ps"
   depends_on "graphviz"
   depends_on "gsl"
   # Temporarily depend on Homebrew libxml2 to work around a brew issue:
@@ -44,13 +39,10 @@ class Root < Formula
   depends_on "numpy" # for tmva
   depends_on "openssl@1.1"
   depends_on "pcre"
-  depends_on "python@3.8"
+  depends_on "python"
   depends_on "tbb"
   depends_on "xrootd"
   depends_on "xz" # for LZMA
-  depends_on "zstd"
-
-  conflicts_with "glew", because: "root ships its own copy of glew"
 
   skip_clean "bin"
 
@@ -66,13 +58,18 @@ class Root < Formula
               "http://lcgpackages",
               "https://lcgpackages"
 
+    py_exe = Utils.popen_read("which python3").strip
+    py_prefix = Utils.popen_read("python3 -c 'import sys;print(sys.prefix)'").chomp
+    py_inc = Utils.popen_read("python3 -c 'from distutils import sysconfig;print(sysconfig.get_python_inc(True))'").chomp
+
     args = std_cmake_args + %W[
       -DCLING_CXX_PATH=clang++
       -DCMAKE_INSTALL_ELISPDIR=#{elisp}
-      -DPYTHON_EXECUTABLE=#{Formula["python@3.8"].opt_bin}/python3
+      -DPYTHON_EXECUTABLE=#{py_exe}
+      -DPYTHON_INCLUDE_DIR=#{py_inc}
+      -DPYTHON_LIBRARY=#{py_prefix}/Python
       -Dbuiltin_cfitsio=OFF
       -Dbuiltin_freetype=ON
-      -Dbuiltin_glew=ON
       -Ddavix=ON
       -Dfftw3=ON
       -Dfitsio=ON
@@ -84,7 +81,7 @@ class Root < Formula
       -Dminuit2=ON
       -Dmysql=OFF
       -Dpgsql=OFF
-      -Dpyroot=ON
+      -Dpython=ON
       -Droofit=ON
       -Dssl=ON
       -Dtmva=ON
@@ -94,36 +91,38 @@ class Root < Formula
     cxx_version = (MacOS.version < :mojave) ? 14 : 17
     args << "-DCMAKE_CXX_STANDARD=#{cxx_version}"
 
-    # Workaround the shim directory being embedded into the output
-    inreplace "build/unix/compiledata.sh", "`type -path $CXX`", ENV.cxx
-
     mkdir "builddir" do
       system "cmake", "..", *args
 
-      system "make", "install"
+      # Work around superenv stripping out isysroot leading to errors with
+      # libsystem_symptoms.dylib (only available on >= 10.12) and
+      # libsystem_darwin.dylib (only available on >= 10.13)
+      if MacOS.version < :high_sierra
+        system "xcrun", "make", "install"
+      else
+        system "make", "install"
+      end
 
       chmod 0755, Dir[bin/"*.*sh"]
-
-      version = Language::Python.major_minor_version Formula["python@3.8"].opt_bin/"python3"
-      pth_contents = "import site; site.addsitedir('#{lib}/root')\n"
-      (prefix/"lib/python#{version}/site-packages/homebrew-root.pth").write pth_contents
     end
   end
 
-  def caveats
-    <<~EOS
-      As of ROOT 6.22, you should not need the thisroot scripts; but if you
-      depend on the custom variables set by them, you can still run them:
+  def caveats; <<~EOS
+    Because ROOT depends on several installation-dependent
+    environment variables to function properly, you should
+    add the following commands to your shell initialization
+    script (.bashrc/.profile/etc.), or call them directly
+    before using ROOT.
 
-      For bash users:
-        . #{HOMEBREW_PREFIX}/bin/thisroot.sh
-      For zsh users:
-        pushd #{HOMEBREW_PREFIX} >/dev/null; . bin/thisroot.sh; popd >/dev/null
-      For csh/tcsh users:
-        source #{HOMEBREW_PREFIX}/bin/thisroot.csh
-      For fish users:
-        . #{HOMEBREW_PREFIX}/bin/thisroot.fish
-    EOS
+    For bash users:
+      . #{HOMEBREW_PREFIX}/bin/thisroot.sh
+    For zsh users:
+      pushd #{HOMEBREW_PREFIX} >/dev/null; . bin/thisroot.sh; popd >/dev/null
+    For csh/tcsh users:
+      source #{HOMEBREW_PREFIX}/bin/thisroot.csh
+    For fish users:
+      . #{HOMEBREW_PREFIX}/bin/thisroot.fish
+  EOS
   end
 
   test do
@@ -138,10 +137,13 @@ class Root < Formula
     system "#{bin}/root", "-b", "-l", "-q", "-e", "gSystem->LoadAllLibraries(); 0"
 
     # Test ROOT executable
+    (testpath/"test_root.bash").write <<~EOS
+      . #{bin}/thisroot.sh
+      root -l -b -n -q test.C
+    EOS
     assert_equal "\nProcessing test.C...\nHello, world!\n",
-                 shell_output("root -l -b -n -q test.C")
+                 shell_output("/bin/bash test_root.bash")
 
-    # Test linking
     (testpath/"test.cpp").write <<~EOS
       #include <iostream>
       #include <TString.h>
@@ -150,7 +152,10 @@ class Root < Formula
         return 0;
       }
     EOS
+
+    # Test linking
     (testpath/"test_compile.bash").write <<~EOS
+      . #{bin}/thisroot.sh
       $(root-config --cxx) $(root-config --cflags) $(root-config --libs) $(root-config --ldflags) test.cpp
       ./a.out
     EOS
@@ -158,6 +163,7 @@ class Root < Formula
                  shell_output("/bin/bash test_compile.bash")
 
     # Test Python module
-    system Formula["python@3.8"].opt_bin/"python3", "-c", "import ROOT; ROOT.gSystem.LoadAllLibraries()"
+    ENV["PYTHONPATH"] = lib/"root"
+    system "python3", "-c", "import ROOT; ROOT.gSystem.LoadAllLibraries()"
   end
 end
