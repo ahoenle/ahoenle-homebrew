@@ -8,6 +8,7 @@ class Root < Formula
   head "https://github.com/root-project/root.git"
 
   bottle do
+    root_url "https://homebrew.bintray.com/bottles"
     sha256 "27ae5cf8f6a43ac4f094eedbf08b0b0e359f2b9367ca40bf45461db17f37e92b" => :catalina
     sha256 "969044266dd1ca84caacee84332072459d0d527ad2e620ad3c481ddfc68275ca" => :mojave
     sha256 "a81a8865786cd14075807c7fc00ed01350dcdd6dab0b4435f9201519299a3f75" => :high_sierra
